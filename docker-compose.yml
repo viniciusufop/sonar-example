@@ -1,0 +1,55 @@
+version: '3'
+
+services:
+  reverse-proxy:
+    image: traefik:v2.0.2
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.omega_httpchallenge.acme.httpchallenge=true"
+      - "--certificatesresolvers.omega_httpchallenge.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.omega_httpchallenge.acme.email=example@mail.com"
+      - "--certificatesresolvers.omega_httpchallenge.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "/root/traefik/letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  
+  db:
+    image: postgres:12.1
+    environment:
+      - POSTGRES_USER=sonarqube
+      - POSTGRES_PASSWORD=sonarqube
+      - POSTGRES_DB=sonarqube
+    volumes:
+      - sonarqube_db:/var/lib/postgresql/data
+
+  sonarqube:
+    image: sonarqube:9.2.4-community
+    environment:
+      - sonar.jdbc.username=sonarqube
+      - sonar.jdbc.password=sonarqube
+      - sonar.jdbc.url=jdbc:postgresql://db:5432/sonarqube
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_data:/opt/sonarqube/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarqube.rule=Host(`sonar.example.com`)"
+      - "traefik.http.routers.sonarqube.entrypoints=websecure"
+      - "traefik.http.routers.sonarqube.tls.certresolver=omega_httpchallenge"
+
+volumes:
+  sonarqube_conf:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonarqube_data:
+  sonarqube_db:
